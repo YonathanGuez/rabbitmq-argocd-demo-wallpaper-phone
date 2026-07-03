@@ -1,0 +1,93 @@
+# Worker microservice: RabbitMQ consumer, Sharp image resizer
+# Scale replicas to process more images in parallel (each worker handles 1 job at a time via prefetch=1)
+---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: wallpaper-worker
+  labels:
+    app: wallpaper-worker
+    app.kubernetes.io/part-of: wallpaper-demo
+    app.kubernetes.io/component: worker
+---
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: wallpaper-worker
+  labels:
+    app: wallpaper-worker
+    app.kubernetes.io/part-of: wallpaper-demo
+    app.kubernetes.io/component: worker
+spec:
+  output:
+    to:
+      kind: ImageStreamTag
+      name: wallpaper-worker:latest
+  source:
+    type: Binary
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: Dockerfile
+  # No automatic triggers — builds are started manually:
+  # oc start-build bc/wallpaper-worker --from-dir=. --follow -n wallpaper-demo
+  triggers: []
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wallpaper-worker
+  labels:
+    app: wallpaper-worker
+    app.kubernetes.io/part-of: wallpaper-demo
+    app.kubernetes.io/component: worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wallpaper-worker
+  template:
+    metadata:
+      labels:
+        app: wallpaper-worker
+        app.kubernetes.io/part-of: wallpaper-demo
+    spec:
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: worker
+          image: wallpaper-worker:latest
+          imagePullPolicy: Always
+          command: ["node", "worker.js"]
+          envFrom:
+            - configMapRef:
+                name: wallpaper-app-config
+          env:
+            - name: RABBITMQ_URL
+              valueFrom:
+                secretKeyRef:
+                  name: wallpaper-rabbitmq
+                  key: RABBITMQ_URL
+            - name: WORKER_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          volumeMounts:
+            - name: uploads
+              mountPath: /uploads
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "2"
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: uploads
+          persistentVolumeClaim:
+            claimName: wallpaper-uploads

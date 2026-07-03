@@ -1,0 +1,129 @@
+# API microservice: file upload, RabbitMQ producer, Socket.io server
+---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: wallpaper-server
+  labels:
+    app: wallpaper-server
+    app.kubernetes.io/part-of: wallpaper-demo
+    app.kubernetes.io/component: api
+---
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: wallpaper-server
+  labels:
+    app: wallpaper-server
+    app.kubernetes.io/part-of: wallpaper-demo
+    app.kubernetes.io/component: api
+spec:
+  output:
+    to:
+      kind: ImageStreamTag
+      name: wallpaper-server:latest
+  source:
+    type: Binary
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: Dockerfile
+  # No automatic triggers — builds are started manually:
+  # oc start-build bc/wallpaper-server --from-dir=. --follow -n wallpaper-demo
+  triggers: []
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wallpaper-app-config
+  labels:
+    app.kubernetes.io/part-of: wallpaper-demo
+data:
+  QUEUE_NAME: simulation_queue
+  UPLOAD_DIR: /uploads
+  PORT: "3000"
+  SERVER_URL: http://wallpaper-server:3000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wallpaper-server
+  labels:
+    app: wallpaper-server
+    app.kubernetes.io/part-of: wallpaper-demo
+    app.kubernetes.io/component: api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wallpaper-server
+  template:
+    metadata:
+      labels:
+        app: wallpaper-server
+        app.kubernetes.io/part-of: wallpaper-demo
+    spec:
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: server
+          image: wallpaper-server:latest
+          imagePullPolicy: Always
+          command: ["node", "server.js"]
+          ports:
+            - containerPort: 3000
+              name: http
+          envFrom:
+            - configMapRef:
+                name: wallpaper-app-config
+          env:
+            - name: RABBITMQ_URL
+              valueFrom:
+                secretKeyRef:
+                  name: wallpaper-rabbitmq
+                  key: RABBITMQ_URL
+          volumeMounts:
+            - name: uploads
+              mountPath: /uploads
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          readinessProbe:
+            tcpSocket:
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: uploads
+          persistentVolumeClaim:
+            claimName: wallpaper-uploads
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wallpaper-server
+  labels:
+    app: wallpaper-server
+    app.kubernetes.io/part-of: wallpaper-demo
+    app.kubernetes.io/component: api
+spec:
+  selector:
+    app: wallpaper-server
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000

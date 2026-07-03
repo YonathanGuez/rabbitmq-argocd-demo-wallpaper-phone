@@ -1,0 +1,16 @@
+# Shared storage for originals + resized wallpapers (server + workers).
+# ReadWriteMany is required when workers run on multiple nodes.
+# Set storageClassName to a RWX-capable class on your cluster (e.g. ocs-storagecluster-cephfs, nfs-client).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: wallpaper-uploads
+  labels:
+    app.kubernetes.io/part-of: wallpaper-demo
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Gi
+  # storageClassName: ocs-storagecluster-cephfs

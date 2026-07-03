@@ -1,0 +1,5 @@
+# nginx-unprivileged runs on port 8080 without root privileges — required for OpenShift SCCs.
+# The nginx config (with the proxy rules) is injected at runtime via a ConfigMap volume mount.
+FROM nginxinc/nginx-unprivileged:alpine
+
+COPY public /usr/share/nginx/html

@@ -1,0 +1,29 @@
+# RabbitMQ cluster managed by the RabbitMQ Cluster Operator.
+# After deployment, the operator creates a secret <name>-default-user
+# containing the credentials. Use it to build the RABBITMQ_URL secret:
+#
+#   USER=$(oc get secret my-rabbitmq-default-user -n wallpaper-demo -o jsonpath='{.data.username}' | base64 -d)
+#   PASS=$(oc get secret my-rabbitmq-default-user -n wallpaper-demo -o jsonpath='{.data.password}' | base64 -d)
+#   HOST=my-rabbitmq.wallpaper-demo.svc.cluster.local
+#   oc create secret generic wallpaper-rabbitmq \
+#     --from-literal=RABBITMQ_URL="amqp://${USER}:${PASS}@${HOST}:5672" \
+#     -n wallpaper-demo
+#
+apiVersion: rabbitmq.com/v1beta1
+kind: RabbitmqCluster
+metadata:
+  name: my-rabbitmq
+  labels:
+    app.kubernetes.io/part-of: wallpaper-demo
+spec:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  rabbitmq:
+    additionalConfig: |
+      default_user_tags.administrator = true

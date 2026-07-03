@@ -1,0 +1,78 @@
+# ApplicationSet — one ArgoCD Application per deployment layer.
+# Sync waves guarantee order: infra → rabbitmq → server → worker → nginx.
+# ArgoCD waits for each wave to be Healthy before starting the next.
+#
+# Bootstrap (run once after installing OpenShift GitOps):
+#   oc apply -f openshift/argocd/appproject.yaml
+#   oc apply -f openshift/argocd/applicationset.yaml
+#
+# After wave-1 (RabbitMQ) is Healthy, create the credentials secret manually:
+#   USER=$(oc get secret my-rabbitmq-default-user -n wallpaper-demo -o jsonpath='{.data.username}' | base64 -d)
+#   PASS=$(oc get secret my-rabbitmq-default-user -n wallpaper-demo -o jsonpath='{.data.password}' | base64 -d)
+#   oc create secret generic wallpaper-rabbitmq \
+#     --from-literal=RABBITMQ_URL="amqp://${USER}:${PASS}@my-rabbitmq.wallpaper-demo.svc.cluster.local:5672" \
+#     -n wallpaper-demo
+#
+# Then trigger the builds (binary builds — requires local source):
+#   oc start-build bc/wallpaper-server --from-dir=. --follow -n wallpaper-demo
+#   oc start-build bc/wallpaper-worker --from-dir=. --follow -n wallpaper-demo
+#   oc start-build bc/wallpaper-nginx  --from-dir=. --follow -n wallpaper-demo
+#
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: wallpaper-demo
+  namespace: openshift-gitops
+  labels:
+    app.kubernetes.io/part-of: wallpaper-demo
+spec:
+  generators:
+    - list:
+        elements:
+          - name: wallpaper-infra
+            wave: "0"
+            include: "{namespace.yaml,pvc.yaml}"
+          - name: wallpaper-rabbitmq
+            wave: "1"
+            include: "rabbitmq-cluster.yaml"
+          - name: wallpaper-server
+            wave: "2"
+            include: "server.yaml"
+          - name: wallpaper-worker
+            wave: "3"
+            include: "worker.yaml"
+          - name: wallpaper-nginx
+            wave: "4"
+            include: "nginx.yaml"
+  template:
+    metadata:
+      name: "{{name}}"
+      namespace: openshift-gitops
+      labels:
+        app.kubernetes.io/part-of: wallpaper-demo
+      annotations:
+        argocd.argoproj.io/sync-wave: "{{wave}}"
+    spec:
+      project: wallpaper-demo
+      source:
+        repoURL: https://github.com/YonathanGuez/rabbitmq-demo-wallpaper-phone
+        targetRevision: main
+        path: openshift/base
+        directory:
+          include: "{{include}}"
+          recurse: false
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: wallpaper-demo
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        retry:
+          limit: 5
+          backoff:
+            duration: 10s
+            factor: 2
+            maxDuration: 3m
+        syncOptions:
+          - RespectIgnoreDifferences=true

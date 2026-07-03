@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: wallpaper-demo
+  namespace: openshift-gitops
+  labels:
+    app.kubernetes.io/part-of: wallpaper-demo
+spec:
+  description: Phone wallpaper demo — RabbitMQ background workers
+  sourceRepos:
+    - "https://github.com/YonathanGuez/rabbitmq-demo-wallpaper-phone"
+  destinations:
+    - namespace: wallpaper-demo
+      server: https://kubernetes.default.svc
+    - namespace: openshift-gitops
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"
