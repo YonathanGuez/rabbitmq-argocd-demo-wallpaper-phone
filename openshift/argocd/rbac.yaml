@@ -1,27 +1,30 @@
-# Grant the ArgoCD application controller permission to manage RabbitmqCluster CRDs.
-# The rabbitmq.com API group is not covered by default OpenShift GitOps RBAC.
+# Grant the ArgoCD application controller permissions for resources not covered
+# by default OpenShift GitOps RBAC: RabbitmqCluster CRDs and SecurityContextConstraints.
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: argocd-rabbitmq-manager
+  name: argocd-extra-permissions
   labels:
     app.kubernetes.io/part-of: wallpaper-demo
 rules:
   - apiGroups: ["rabbitmq.com"]
     resources: ["rabbitmqclusters"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["security.openshift.io"]
+    resources: ["securitycontextconstraints"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: argocd-rabbitmq-manager
+  name: argocd-extra-permissions
   labels:
     app.kubernetes.io/part-of: wallpaper-demo
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: argocd-rabbitmq-manager
+  name: argocd-extra-permissions
 subjects:
   - kind: ServiceAccount
     name: openshift-gitops-argocd-application-controller
