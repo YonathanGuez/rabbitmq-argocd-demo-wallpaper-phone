@@ -1,6 +1,6 @@
 # Shared storage for originals + resized wallpapers (server + workers).
 # ReadWriteMany is required when workers run on multiple nodes.
-# Set storageClassName to a RWX-capable class on your cluster (e.g. ocs-storagecluster-cephfs, nfs-client).
+# ceph-rbd (default) is RWO only — CephFS is required for RWX.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -10,7 +10,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteMany
+  storageClassName: ocs-external-storagecluster-cephfs
   resources:
     requests:
       storage: 5Gi
-  # storageClassName: ocs-storagecluster-cephfs
