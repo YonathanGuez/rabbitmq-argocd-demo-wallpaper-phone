@@ -1,0 +1,70 @@
+# Grant the RabbitMQ pod a custom SCC before wave-1.
+# The ClusterRoleBinding references the SA that the operator will create — RBAC
+# is evaluated at pod admission time, so the binding is effective as soon as the SA exists.
+#
+# Two reasons the built-in SCCs won't work:
+# 1. The official rabbitmq image runs as UID 999 (outside OpenShift's restricted UID range).
+# 2. The RabbitMQ Cluster Operator adds alpha seccomp annotations that anyuid SCC forbids.
+---
+apiVersion: security.openshift.io/v1
+kind: SecurityContextConstraints
+metadata:
+  name: rabbitmq-scc
+  labels:
+    app.kubernetes.io/part-of: wallpaper-demo
+allowHostDirVolumePlugin: false
+allowHostIPC: false
+allowHostNetwork: false
+allowHostPID: false
+allowHostPorts: false
+allowPrivilegeEscalation: false
+allowPrivilegedContainer: false
+allowedCapabilities: []
+defaultAddCapabilities: []
+fsGroup:
+  type: RunAsAny
+readOnlyRootFilesystem: false
+requiredDropCapabilities:
+  - ALL
+runAsUser:
+  type: RunAsAny
+seLinuxContext:
+  type: MustRunAs
+seccompProfiles:
+  - '*'
+supplementalGroups:
+  type: RunAsAny
+volumes:
+  - configMap
+  - downwardAPI
+  - emptyDir
+  - persistentVolumeClaim
+  - projected
+  - secret
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: use-rabbitmq-scc
+  labels:
+    app.kubernetes.io/part-of: wallpaper-demo
+rules:
+  - apiGroups: ["security.openshift.io"]
+    resources: ["securitycontextconstraints"]
+    resourceNames: ["rabbitmq-scc"]
+    verbs: ["use"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: rabbitmq-scc-binding
+  labels:
+    app.kubernetes.io/part-of: wallpaper-demo
+subjects:
+  - kind: ServiceAccount
+    name: my-rabbitmq-server
+    namespace: wallpaper-demo
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: use-rabbitmq-scc

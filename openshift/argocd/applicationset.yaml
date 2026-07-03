@@ -31,7 +31,7 @@ spec:
         elements:
           - name: wallpaper-infra
             wave: "0"
-            include: "{namespace.yaml,pvc.yaml}"
+            include: "{namespace.yaml,pvc.yaml,scc.yaml}"
           - name: wallpaper-rabbitmq
             wave: "1"
             include: "rabbitmq-cluster.yaml"
